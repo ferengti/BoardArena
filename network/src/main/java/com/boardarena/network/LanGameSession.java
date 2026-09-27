@@ -8,6 +8,7 @@ import com.boardarena.core.PlayerId;
 import com.boardarena.core.multiplayer.MultiplayerSession;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /**
  * Server-authoritative two-player session over TCP. Only the host mutates its
@@ -24,7 +26,6 @@ import java.util.concurrent.Executors;
 final class LanGameSession<M extends Move> implements MultiplayerSession<M> {
 
     private final Game<M> game;
-    private final GameEngine<M> engine;
     private final PlayerId localPlayer;
     private final String roomCode;
     private final boolean hostMode;
@@ -33,11 +34,23 @@ final class LanGameSession<M extends Move> implements MultiplayerSession<M> {
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final List<Listener<M>> listeners = new CopyOnWriteArrayList<>();
     private final Object lock = new Object();
+    private final List<Consumer<String>> chatListeners =
+            new CopyOnWriteArrayList<>();
 
+    private final List<RematchListener> rematchListeners =
+            new CopyOnWriteArrayList<>();
+
+    private volatile GameEngine<M> engine;
     private volatile boolean ready;
     private volatile boolean closed;
     private volatile TcpGameTransport transport;
     private long nextSequence = 1;
+    private long rematchRound;
+    private boolean localRematchRequested;
+    private boolean remoteRematchRequested;
+
+
+
 
     private LanGameSession(
             Game<M> game,
@@ -108,6 +121,149 @@ final class LanGameSession<M extends Move> implements MultiplayerSession<M> {
     @Override
     public void addListener(Listener<M> listener) {
         listeners.add(Objects.requireNonNull(listener));
+    }
+
+    @Override
+    public void addChatListener(Consumer<String> listener) {
+        chatListeners.add(Objects.requireNonNull(listener));
+    }
+
+    @Override
+    public void addRematchListener(RematchListener listener) {
+        rematchListeners.add(Objects.requireNonNull(listener));
+    }
+
+    @Override
+    public void sendChatMessage(String message) {
+        String normalized = Objects.requireNonNull(message).trim();
+
+        if (normalized.isEmpty()) {
+            return;
+        }
+
+        if (normalized.length() > 500) {
+            throw new IllegalArgumentException(
+                    "Chat message must be at most 500 characters");
+        }
+
+        synchronized (lock) {
+            ensurePlayable();
+
+            try {
+                transport.send(Protocol.chat(normalized));
+            } catch (IOException e) {
+                disconnect(e);
+                throw new IllegalStateException(
+                        "Unable to send chat message", e);
+            }
+        }
+    }
+
+    @Override
+    public void requestRematch() {
+        synchronized (lock) {
+            ensurePlayable();
+
+            if (!engine.currentState().isGameOver()) {
+                throw new IllegalStateException(
+                        "Rematch can only be requested after the game ends");
+            }
+
+            if (localRematchRequested) {
+                return;
+            }
+
+            localRematchRequested = true;
+
+            try {
+                transport.send(Protocol.rematchRequest());
+            } catch (IOException e) {
+                localRematchRequested = false;
+                disconnect(e);
+
+                throw new IllegalStateException(
+                        "Unable to request rematch", e);
+            }
+        }
+    }
+
+    @Override
+    public void respondToRematch(boolean accepted) {
+        synchronized (lock) {
+            ensurePlayable();
+
+            if (!remoteRematchRequested) {
+                throw new IllegalStateException(
+                        "No rematch request is pending");
+            }
+
+            remoteRematchRequested = false;
+
+            try {
+                transport.send(
+                        accepted
+                                ? Protocol.rematchAccept()
+                                : Protocol.rematchDecline()
+                );
+
+                if (accepted && hostMode) {
+                    startRematch();
+                }
+
+            } catch (IOException e) {
+                disconnect(e);
+
+                throw new IllegalStateException(
+                        "Unable to respond to rematch", e);
+            }
+        }
+    }
+
+    private void startRematch() {
+        if (!hostMode) {
+            return;
+        }
+
+        rematchRound++;
+        localRematchRequested = false;
+        remoteRematchRequested = false;
+
+        engine = new GameEngine<>(game.newInitialState());
+        nextSequence = 1;
+
+        try {
+            transport.send(Protocol.rematchStart(rematchRound));
+        } catch (IOException e) {
+            disconnect(e);
+            return;
+        }
+
+        notifyStateChanged();
+        notifyRematchStarted();
+    }
+
+    private void notifyChat(String message) {
+        for (Consumer<String> listener : chatListeners) {
+            listener.accept(message);
+        }
+    }
+
+    private void notifyRematchRequest() {
+        for (RematchListener listener : rematchListeners) {
+            listener.onRequest();
+        }
+    }
+
+    private void notifyRematchDeclined() {
+        for (RematchListener listener : rematchListeners) {
+            listener.onDeclined();
+        }
+    }
+
+    private void notifyRematchStarted() {
+        for (RematchListener listener : rematchListeners) {
+            listener.onStarted();
+        }
     }
 
     @Override
@@ -235,6 +391,46 @@ final class LanGameSession<M extends Move> implements MultiplayerSession<M> {
             return;
         }
 
+        if (frame.startsWith(Protocol.CHAT + "|")) {
+            notifyChat(Protocol.parseChat(frame));
+            return;
+        }
+
+        if (Protocol.REMATCH_REQUEST.equals(frame)) {
+            if (!engine.currentState().isGameOver()) {
+                sendErrorAndClose(
+                        "BAD_REMATCH",
+                        "Rematch was requested before the game ended");
+                return;
+            }
+
+            remoteRematchRequested = true;
+            notifyRematchRequest();
+            return;
+        }
+
+        if (Protocol.REMATCH_ACCEPT.equals(frame)) {
+            if (!localRematchRequested && !remoteRematchRequested) {
+                return;
+            }
+
+            localRematchRequested = false;
+            remoteRematchRequested = false;
+
+            startRematch();
+            return;
+        }
+
+        if (Protocol.REMATCH_DECLINE.equals(frame)) {
+            if (!localRematchRequested) {
+                return;
+            }
+
+            localRematchRequested = false;
+            notifyRematchDeclined();
+            return;
+        }
+
         sendErrorAndClose("BAD_MESSAGE", "Unexpected message");
     }
 
@@ -275,6 +471,61 @@ final class LanGameSession<M extends Move> implements MultiplayerSession<M> {
 
         if (frame.startsWith(Protocol.BYE + "|")) {
             disconnect(null);
+            return;
+        }
+
+        if (frame.startsWith(Protocol.CHAT + "|")) {
+            notifyChat(Protocol.parseChat(frame));
+            return;
+        }
+
+        if (Protocol.REMATCH_REQUEST.equals(frame)) {
+            if (!engine.currentState().isGameOver()) {
+                sendErrorAndClose(
+                        "BAD_REMATCH",
+                        "Rematch was requested before the game ended");
+                return;
+            }
+
+            remoteRematchRequested = true;
+            notifyRematchRequest();
+            return;
+        }
+
+        if (Protocol.REMATCH_ACCEPT.equals(frame)) {
+            localRematchRequested = false;
+            remoteRematchRequested = false;
+
+            // Host owns the authoritative reset.
+            return;
+        }
+
+        if (Protocol.REMATCH_DECLINE.equals(frame)) {
+            if (!localRematchRequested) {
+                return;
+            }
+
+            localRematchRequested = false;
+            notifyRematchDeclined();
+            return;
+        }
+
+        if (frame.startsWith(Protocol.REMATCH_START + "|")) {
+            long round = Protocol.parseRematchStart(frame);
+
+            if (round <= rematchRound) {
+                return;
+            }
+
+            rematchRound = round;
+            localRematchRequested = false;
+            remoteRematchRequested = false;
+
+            engine = new GameEngine<>(game.newInitialState());
+            nextSequence = 1;
+
+            notifyStateChanged();
+            notifyRematchStarted();
             return;
         }
 
@@ -354,5 +605,19 @@ final class LanGameSession<M extends Move> implements MultiplayerSession<M> {
 
     private static String generateRoomCode() {
         return String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1_000_000));
+    }
+
+    LanGameRoom localRoom() {
+        if (!hostMode || serverSocket == null) {
+            throw new IllegalStateException(
+                    "Only a host session has a local room");
+        }
+
+        return new LanGameRoom(
+                roomCode,
+                game.id(),
+                game.displayName(),
+                InetAddress.getLoopbackAddress(),
+                serverSocket.getLocalPort());
     }
 }

@@ -15,6 +15,11 @@ final class Protocol {
     static final String MOVE_REQUEST = "MOVE_REQUEST";
     static final String ERROR = "ERROR";
     static final String BYE = "BYE";
+    static final String CHAT = "CHAT";
+    static final String REMATCH_REQUEST = "REMATCH_REQUEST";
+    static final String REMATCH_ACCEPT = "REMATCH_ACCEPT";
+    static final String REMATCH_DECLINE = "REMATCH_DECLINE";
+    static final String REMATCH_START = "REMATCH_START";
 
     private Protocol() {
     }
@@ -103,6 +108,50 @@ final class Protocol {
             throw invalid("Expected BYE");
         }
         return decode(parts[1]);
+    }
+
+    static String chat(String message) {
+        return CHAT + "|" + encode(message);
+    }
+
+    static String parseChat(String frame) {
+        String[] parts = split(frame, 2);
+
+        if (!CHAT.equals(parts[0])) {
+            throw invalid("Expected CHAT");
+        }
+
+        return decode(parts[1]);
+    }
+
+    static String rematchRequest() {
+        return REMATCH_REQUEST;
+    }
+
+    static String rematchAccept() {
+        return REMATCH_ACCEPT;
+    }
+
+    static String rematchDecline() {
+        return REMATCH_DECLINE;
+    }
+
+    static String rematchStart(long round) {
+        return REMATCH_START + "|" + round;
+    }
+
+    static long parseRematchStart(String frame) {
+        String[] parts = split(frame, 2);
+
+        if (!REMATCH_START.equals(parts[0])) {
+            throw invalid("Expected REMATCH_START");
+        }
+
+        try {
+            return Long.parseLong(parts[1]);
+        } catch (NumberFormatException e) {
+            throw invalid("Invalid rematch round");
+        }
     }
 
     private static String[] split(String frame, int expectedParts) {
