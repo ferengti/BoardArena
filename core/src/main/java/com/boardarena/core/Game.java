@@ -22,4 +22,7 @@ public interface Game<M extends Move> {
     GameState<M> newInitialState();
 
     AiStrategy<M> aiStrategy();
+
+    /** Codec used by persistence or a multiplayer transport for this game. */
+    MoveCodec<M> moveCodec();
 }

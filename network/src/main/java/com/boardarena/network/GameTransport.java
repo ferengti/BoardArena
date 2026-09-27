@@ -1,24 +1,23 @@
 package com.boardarena.network;
 
+import java.io.IOException;
+import java.util.function.Consumer;
+
 /**
- * Scaffold for the networking layer: LAN discovery, hosting a room behind a
- * PIN, and syncing moves between two clients -- mirroring the
- * khelo-tic-tac-toe reference project's multiplayer feature.
- *
- * Not implemented yet; the contract goes in first so {@code app} can be
- * wired against it later without another refactor. Planned shape:
- *   - UDP broadcast for "who's hosting on this LAN" discovery
- *   - TCP for the actual session once a room PIN is entered
- *   - moves serialized as plain strings so any {@code Move} type (Tic-Tac-Toe
- *     today, Chess later) can flow through the same transport
+ * Reliable, ordered text-frame transport for a game session.
+ * The transport deliberately knows nothing about moves or games. Protocol
+ * framing and game-specific serialization belong above this layer.
  */
-public interface GameTransport {
+public interface GameTransport extends AutoCloseable {
 
-    void sendMove(String serializedMove);
+    void send(String frame) throws IOException;
 
-    void onMoveReceived(MoveListener listener);
+    void onMessage(Consumer<String> listener);
 
-    interface MoveListener {
-        void onMove(String serializedMove);
-    }
+    void onClosed(Consumer<Throwable> listener);
+
+    boolean isOpen();
+
+    @Override
+    void close();
 }
