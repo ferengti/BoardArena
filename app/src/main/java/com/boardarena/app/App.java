@@ -47,12 +47,14 @@ public final class App extends Application {
 
     private void startGame(Stage stage, Difficulty difficulty) {
         var game = new TicTacToeGame();
-        var engine = new GameEngine<TicTacToeMove>(game.newInitialState());
-        var boardView = new TicTacToeBoardView(engine, game, difficulty, PlayerId.PLAYER_ONE);
+        var engine = new GameEngine<>(game.newInitialState());
+        Runnable backToMenu = () -> stage.setScene(new Scene(buildMenu(stage), 420, 480));
+        Runnable restartGame = () -> startGame(stage, difficulty);
+        var boardView = new TicTacToeBoardView(engine, game, difficulty, PlayerId.PLAYER_ONE, backToMenu, restartGame);
         stage.setScene(new Scene(boardView, 420, 480));
     }
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         launch(args);
     }
 }
