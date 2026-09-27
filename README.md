@@ -49,7 +49,7 @@ engine, UI shell, or network layer.
 - [x] Tic-Tac-Toe rules + minimax AI (Easy / Medium / Hard)
 - [x] Offline Tic-Tac-Toe vs. AI, playable via JavaFX
 - [x] LAN discovery + room-code (PIN) join, host or join a match over Wi-Fi/LAN
-- [ ] Rematch / chat in multiplayer (parity with khelo-tic-tac-toe)
+- [x] Rematch / chat in multiplayer (parity with khelo-tic-tac-toe)
 - [ ] Chess rules + engine
 - [ ] Chess AI (alpha-beta search; "Hard" may delegate to an external UCI engine)
 
