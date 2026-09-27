@@ -14,7 +14,7 @@ engine, UI shell, or network layer.
 <!-- TODO: replace with real screenshots once captured -->
 | Main menu | LAN lobby | In-game |
 |---|---|---|
-| <img width="420" height="510" alt="image" src="https://github.com/user-attachments/assets/eae15d6b-96b9-49bf-a839-42ed9f399104" /> | <img width="460" height="551" alt="image" src="https://github.com/user-attachments/assets/1a98ad89-e693-4aca-8394-83dbec8e5498" /> | <img width="420" height="511" alt="image" src="https://github.com/user-attachments/assets/b4bafe08-4247-4e8c-a9b7-ca4be326264a" /> |
+| <img width="420" height="510" alt="image" src="https://github.com/user-attachments/assets/eae15d6b-96b9-49bf-a839-42ed9f399104" /> | <img width="460" height="551" alt="image" src="https://github.com/user-attachments/assets/1a98ad89-e693-4aca-8394-83dbec8e5498" /> | <img width="420" height="509" alt="Screenshot 2026-09-27 at 17 02 56" src="https://github.com/user-attachments/assets/42800ca4-2af9-42a5-bc08-9245774c6301" /> |
 
 ## Requirements
 
