@@ -12,15 +12,11 @@ import java.util.List;
  *
  * @param <M> the concrete move type for this game
  */
-public final class GameEngine<M extends Move> {
+public final class GameEngine<M extends Move> implements GameSession<M> {
 
     /** Notified after every successful move. */
-    public interface Listener<M extends Move> {
-        void onStateChanged(GameState<M> newState);
-    }
-
     private GameState<M> state;
-    private final List<Listener<M>> listeners = new ArrayList<>();
+    private final List<GameSession.Listener<M>> listeners = new ArrayList<>();
 
     public GameEngine(GameState<M> initialState) {
         this.state = initialState;
@@ -30,7 +26,7 @@ public final class GameEngine<M extends Move> {
         return state;
     }
 
-    public void addListener(Listener<M> listener) {
+    public void addListener(GameSession.Listener<M> listener) {
         listeners.add(listener);
     }
 
@@ -42,7 +38,7 @@ public final class GameEngine<M extends Move> {
             throw new IllegalArgumentException("Illegal move: " + move);
         }
         state = state.applyMove(move);
-        for (Listener<M> listener : listeners) {
+        for (GameSession.Listener<M> listener : listeners) {
             listener.onStateChanged(state);
         }
     }

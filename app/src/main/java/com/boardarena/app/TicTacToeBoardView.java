@@ -1,47 +1,54 @@
 package com.boardarena.app;
 
-import com.boardarena.core.GameEngine;
 import com.boardarena.core.GameResult;
+import com.boardarena.core.GameSession;
 import com.boardarena.core.GameState;
 import com.boardarena.core.PlayerId;
-import com.boardarena.core.ai.Difficulty;
-import com.boardarena.tictactoe.TicTacToeGame;
 import com.boardarena.tictactoe.TicTacToeMove;
 import com.boardarena.tictactoe.TicTacToeState;
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
-import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 
 /**
- * Renders one Tic-Tac-Toe match and drives it through a {@link GameEngine}.
- * Knows nothing about networking; a networked match would drive the same
- * engine from received moves instead of AI moves.
+ * Renders a Tic-Tac-Toe match through the game-session abstraction. It knows
+ * nothing about AI, TCP, UDP, LAN discovery, or any concrete network class.
  */
 final class TicTacToeBoardView extends VBox {
 
-    private final GameEngine<TicTacToeMove> engine;
-    private final TicTacToeGame game;
-    private final Difficulty difficulty;
-    private final PlayerId humanPlayer;
+    private final GameSession<TicTacToeMove> session;
+    private final PlayerId localPlayer;
+    private final String opponentLabel;
+    private final String roomLabel;
+    private final Runnable afterLocalMove;
     private final Button[][] cells = new Button[3][3];
     private final Label statusLabel = new Label();
 
-    TicTacToeBoardView(GameEngine<TicTacToeMove> engine, TicTacToeGame game,
-                        Difficulty difficulty, PlayerId humanPlayer, Runnable onReset, Runnable onRestart) {
-        this.engine = engine;
-        this.game = game;
-        this.difficulty = difficulty;
-        this.humanPlayer = humanPlayer;
+    TicTacToeBoardView(
+            GameSession<TicTacToeMove> session,
+            PlayerId localPlayer,
+            String opponentLabel,
+            String roomLabel,
+            Runnable afterLocalMove,
+            String primaryActionText,
+            Runnable onPrimaryAction,
+            Runnable onBack) {
+        this.session = session;
+        this.localPlayer = localPlayer;
+        this.opponentLabel = opponentLabel;
+        this.roomLabel = roomLabel;
+        this.afterLocalMove = afterLocalMove;
 
-        Button resetButton = new Button("Back to menu");
-        Button restartButton = new Button("Restart");
-        resetButton.setOnAction(e -> onReset.run());
-        restartButton.setOnAction(e -> onRestart.run());
+        Button primaryAction = new Button(primaryActionText);
+        Button backButton = new Button("Back to menu");
+        primaryAction.setOnAction(e -> onPrimaryAction.run());
+        backButton.setOnAction(e -> onBack.run());
 
-        HBox buttons = new HBox(8, restartButton, resetButton);
+        HBox buttons = new HBox(8, primaryAction, backButton);
         buttons.setAlignment(Pos.CENTER);
 
         setAlignment(Pos.CENTER);
@@ -49,7 +56,7 @@ final class TicTacToeBoardView extends VBox {
         setStyle("-fx-padding: 24px;");
         getChildren().addAll(statusLabel, buildGrid(), buttons);
 
-        engine.addListener(state -> refresh());
+        session.addListener(state -> Platform.runLater(this::refresh));
         refresh();
     }
 
@@ -74,33 +81,31 @@ final class TicTacToeBoardView extends VBox {
     }
 
     private void onCellClicked(int row, int col) {
-        GameState<TicTacToeMove> state = engine.currentState();
-        if (state.isGameOver() || state.currentPlayer() != humanPlayer) {
+        GameState<TicTacToeMove> state = session.currentState();
+        if (!session.isReady() || state.isGameOver() || state.currentPlayer() != localPlayer) {
             return;
         }
+
         TicTacToeMove move = new TicTacToeMove(row, col);
         if (!state.legalMoves().contains(move)) {
             return;
         }
-        engine.playMove(move);
-        maybePlayAiMove();
-    }
 
-    private void maybePlayAiMove() {
-        GameState<TicTacToeMove> state = engine.currentState();
-        if (!state.isGameOver() && state.currentPlayer() != humanPlayer) {
-            TicTacToeMove aiMove = game.aiStrategy().chooseMove(state, difficulty);
-            engine.playMove(aiMove);
-        }
+        session.playMove(move);
+        afterLocalMove.run();
     }
 
     private void refresh() {
-        var state = (TicTacToeState) engine.currentState();
+        var state = (TicTacToeState) session.currentState();
+        boolean inputEnabled = session.isReady()
+                && !state.isGameOver()
+                && state.currentPlayer() == localPlayer;
+
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 3; col++) {
                 PlayerId occupant = state.cellAt(row, col);
                 cells[row][col].setText(symbolFor(occupant));
-                cells[row][col].setDisable(occupant != null || state.isGameOver());
+                cells[row][col].setDisable(!inputEnabled || occupant != null);
             }
         }
         statusLabel.setText(statusText(state));
@@ -108,14 +113,18 @@ final class TicTacToeBoardView extends VBox {
 
     private String symbolFor(PlayerId playerId) {
         if (playerId == null) return "";
-        return playerId == humanPlayer ? "X" : "O";
+        return playerId == localPlayer ? "X" : "O";
     }
 
     private String statusText(GameState<TicTacToeMove> state) {
-        return state.result().map(result -> switch (result) {
-            case GameResult.Win win when win.winner() == humanPlayer -> "You win!";
-            case GameResult.Win win -> "AI wins!";
+        String prefix = roomLabel == null || roomLabel.isBlank() ? "" : roomLabel + "  •  ";
+        if (!session.isReady()) {
+            return prefix + "Waiting for opponent...";
+        }
+        return prefix + state.result().map(result -> switch (result) {
+            case GameResult.Win win when win.winner() == localPlayer -> "You win!";
+            case GameResult.Win win -> opponentLabel + " wins!";
             case GameResult.Draw draw -> "Draw!";
-        }).orElseGet(() -> state.currentPlayer() == humanPlayer ? "Your turn" : "AI thinking...");
+        }).orElseGet(() -> state.currentPlayer() == localPlayer ? "Your turn" : opponentLabel + "'s turn");
     }
 }

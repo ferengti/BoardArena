@@ -28,4 +28,11 @@ public final class TicTacToeGame implements Game<TicTacToeMove> {
     public AiStrategy<TicTacToeMove> aiStrategy() {
         return aiStrategy;
     }
+
+    @Override
+    public TicTacToeMoveCodec moveCodec() {
+        return CODEC;
+    }
+
+    private static final TicTacToeMoveCodec CODEC = new TicTacToeMoveCodec();
 }

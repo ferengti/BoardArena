@@ -5,6 +5,7 @@ import com.boardarena.core.PlayerId;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TicTacToeStateTest {
 
@@ -18,6 +19,18 @@ class TicTacToeStateTest {
                 .applyMove(new TicTacToeMove(0, 2)); // P1 completes the top row
 
         assertEquals(new GameResult.Win(PlayerId.PLAYER_ONE), state.result().orElseThrow());
+    }
+
+    @Test
+    void rejectsMoveAfterGameOver() {
+        var state = TicTacToeState.initial()
+                .applyMove(new TicTacToeMove(0, 0))
+                .applyMove(new TicTacToeMove(1, 0))
+                .applyMove(new TicTacToeMove(0, 1))
+                .applyMove(new TicTacToeMove(1, 1))
+                .applyMove(new TicTacToeMove(0, 2));
+
+        assertThrows(IllegalArgumentException.class, () -> state.applyMove(new TicTacToeMove(2, 2)));
     }
 
     @Test
