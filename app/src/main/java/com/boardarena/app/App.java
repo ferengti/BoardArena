@@ -73,6 +73,7 @@ public final class App extends Application {
 
         var boardView = new TicTacToeBoardView(
                 engine,
+                null,
                 PlayerId.PLAYER_ONE,
                 "AI",
                 null,
@@ -214,6 +215,7 @@ public final class App extends Application {
 
         var boardView = new TicTacToeBoardView(
                 session,
+                session,
                 session.localPlayer(),
                 "Opponent",
                 "Room PIN: " + session.roomCode(),
@@ -221,7 +223,9 @@ public final class App extends Application {
                 "Leave game",
                 leave,
                 leave);
-        stage.setScene(new Scene(boardView, 420, 480));
+        stage.setScene(
+                new Scene(boardView, 460, 720)
+        );
     }
 
     private void showError(String title, Throwable error) {

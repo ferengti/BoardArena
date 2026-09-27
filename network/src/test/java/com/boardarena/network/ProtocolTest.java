@@ -31,4 +31,39 @@ class ProtocolTest {
 
         assertEquals(PlayerId.PLAYER_TWO, welcome.player());
     }
+
+    @Test
+    void roundTripsChat() {
+        assertEquals(
+                "hello | LAN!",
+                Protocol.parseChat(
+                        Protocol.chat("hello | LAN!")
+                )
+        );
+    }
+
+    @Test
+    void roundTripsRematchStart() {
+        assertEquals(
+                3,
+                Protocol.parseRematchStart(
+                        Protocol.rematchStart(3)
+                )
+        );
+
+        assertEquals(
+                Protocol.REMATCH_REQUEST,
+                Protocol.rematchRequest()
+        );
+
+        assertEquals(
+                Protocol.REMATCH_ACCEPT,
+                Protocol.rematchAccept()
+        );
+
+        assertEquals(
+                Protocol.REMATCH_DECLINE,
+                Protocol.rematchDecline()
+        );
+    }
 }
