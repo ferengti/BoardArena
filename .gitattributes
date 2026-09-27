@@ -1,0 +1,8 @@
+# Normalize line endings so the same file looks the same on Windows and macOS.
+* text=auto
+
+# Windows batch/scripts must keep CRLF regardless of platform.
+*.bat text eol=crlf
+
+# The Unix wrapper script must keep LF, or it won't run on macOS/Linux.
+gradlew text eol=lf
