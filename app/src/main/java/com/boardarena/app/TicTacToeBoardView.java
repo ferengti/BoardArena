@@ -13,6 +13,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
 
 /**
  * Renders one Tic-Tac-Toe match and drives it through a {@link GameEngine}.
@@ -29,16 +30,24 @@ final class TicTacToeBoardView extends VBox {
     private final Label statusLabel = new Label();
 
     TicTacToeBoardView(GameEngine<TicTacToeMove> engine, TicTacToeGame game,
-                        Difficulty difficulty, PlayerId humanPlayer) {
+                        Difficulty difficulty, PlayerId humanPlayer, Runnable onReset, Runnable onRestart) {
         this.engine = engine;
         this.game = game;
         this.difficulty = difficulty;
         this.humanPlayer = humanPlayer;
 
+        Button resetButton = new Button("Back to menu");
+        Button restartButton = new Button("Restart");
+        resetButton.setOnAction(e -> onReset.run());
+        restartButton.setOnAction(e -> onRestart.run());
+
+        HBox buttons = new HBox(8, restartButton, resetButton);
+        buttons.setAlignment(Pos.CENTER);
+
         setAlignment(Pos.CENTER);
         setSpacing(16);
         setStyle("-fx-padding: 24px;");
-        getChildren().addAll(statusLabel, buildGrid());
+        getChildren().addAll(statusLabel, buildGrid(), buttons);
 
         engine.addListener(state -> refresh());
         refresh();
