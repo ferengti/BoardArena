@@ -30,6 +30,9 @@ engine, UI shell, or network layer.
 ./gradlew :app:run
 ```
 
+<img width="419" height="509" alt="image" src="https://github.com/user-attachments/assets/c7a7c7b8-ce0b-43b8-a8dc-f3c7fd7fd8dd" />
+
+
 ## Running tests
 
 ```
