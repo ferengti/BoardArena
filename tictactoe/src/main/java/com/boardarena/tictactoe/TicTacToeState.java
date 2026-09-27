@@ -59,6 +59,9 @@ public final class TicTacToeState implements GameState<TicTacToeMove> {
 
     @Override
     public GameState<TicTacToeMove> applyMove(TicTacToeMove move) {
+        if (isGameOver()) {
+            throw new IllegalArgumentException("Cannot play after game over");
+        }
         if (board[move.row()][move.col()] != null) {
             throw new IllegalArgumentException("Cell already occupied: " + move);
         }
